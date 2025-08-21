@@ -2,13 +2,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api import auth, dreams, search, tags
 from app.db.base import Base, engine
-
+import os
 app = FastAPI()
 
 # Allow Vite dev server origins
 origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    os.getenv("FRONTEND_URL"),
 ]
 
 app.add_middleware(
