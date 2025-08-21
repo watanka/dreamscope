@@ -1,0 +1,118 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  @apply bg-black text-white;
+}
+
+/* Crystal Ball visuals */
+.crystal-aurora {
+  background:
+    conic-gradient(from 0deg, rgba(99,102,241,0.18), rgba(34,197,94,0.08), rgba(56,189,248,0.12), rgba(99,102,241,0.18));
+  mix-blend-mode: screen;
+  filter: blur(2px) saturate(120%);
+  animation: rotate-slow 18s linear infinite;
+}
+
+.shine {
+  background:
+    radial-gradient(35% 35% at 28% 25%, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0.06) 45%, rgba(255,255,255,0.0) 60%),
+    radial-gradient(45% 45% at 70% 75%, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.0) 60%),
+    linear-gradient(100deg, rgba(255,255,255,0.0) 45%, rgba(255,255,255,0.35) 50%, rgba(255,255,255,0.0) 55%);
+  background-size: 100% 100%, 100% 100%, 260% 100%;
+  background-position: center center, center center, -150% 0;
+}
+
+.crystal-ball.active .shine {
+  animation: glint 2.8s ease-in-out infinite;
+}
+
+.crystal-sparkles {
+  perspective: 800px;
+}
+.crystal-sparkles span {
+  position: absolute;
+  display: block;
+  width: 4px; height: 4px;
+  border-radius: 9999px;
+  background: radial-gradient(circle, #fff, rgba(255,255,255,0.2));
+  opacity: 0.7;
+  box-shadow: 0 0 8px rgba(255,255,255,0.8);
+}
+.crystal-ball.active .crystal-sparkles span {
+  animation: twinkle 2.2s ease-in-out infinite;
+}
+
+/* Place sparkles */
+.crystal-sparkles span:nth-child(1){ top:14%; left:30%; animation-delay: 0.1s }
+.crystal-sparkles span:nth-child(2){ top:22%; left:68%; animation-delay: 0.5s }
+.crystal-sparkles span:nth-child(3){ top:46%; left:18%; animation-delay: 1.1s }
+.crystal-sparkles span:nth-child(4){ top:58%; left:52%; animation-delay: 1.6s }
+.crystal-sparkles span:nth-child(5){ top:34%; left:54%; animation-delay: 0.9s }
+.crystal-sparkles span:nth-child(6){ top:70%; left:38%; animation-delay: 1.9s }
+.crystal-sparkles span:nth-child(7){ top:66%; left:70%; animation-delay: 1.3s }
+.crystal-sparkles span:nth-child(8){ top:28%; left:44%; animation-delay: 0.7s }
+.crystal-sparkles span:nth-child(9){ top:78%; left:56%; animation-delay: 1.5s }
+.crystal-sparkles span:nth-child(10){ top:40%; left:76%; animation-delay: 1.0s }
+.crystal-sparkles span:nth-child(11){ top:60%; left:24%; animation-delay: 2.1s }
+.crystal-sparkles span:nth-child(12){ top:50%; left:62%; animation-delay: 2.5s }
+
+.crystal-shadow {
+  background: radial-gradient(60% 60% at 50% 50%, rgba(2,6,23,0.9), rgba(2,6,23,0.0) 70%);
+  filter: blur(6px);
+}
+
+.crystal-ball.active .sphere {
+  animation: float-slow 5s ease-in-out infinite, pulse-glow 3.6s ease-in-out infinite;
+}
+
+@keyframes glint {
+  0% { background-position: center center, center center, -150% 0; }
+  20% { background-position: center center, center center, 120% 0; }
+  100% { background-position: center center, center center, 120% 0; }
+}
+
+@keyframes twinkle {
+  0%, 100% { transform: translateZ(0) scale(0.8); opacity: 0.4; }
+  50% { transform: translateZ(20px) scale(1.3); opacity: 1; }
+}
+
+@keyframes rotate-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { filter: drop-shadow(0 0 18px rgba(99,102,241,0.35)); }
+  50% { filter: drop-shadow(0 0 28px rgba(99,102,241,0.55)); }
+}
+
+/* Loading shimmer lines */
+.shimmer-line {
+  background: linear-gradient(90deg,
+    rgba(255,255,255,0.04) 25%,
+    rgba(255,255,255,0.12) 37%,
+    rgba(255,255,255,0.04) 63%
+  );
+  background-size: 400% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
