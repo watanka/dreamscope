@@ -2,7 +2,6 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Response
 from app.dependencies import get_db, get_current_user
 from datetime import datetime
 from sqlalchemy.orm import Session
-from typing import List
 from app.db.repository import (
     DreamRepository,
     TagRepository,
@@ -15,7 +14,12 @@ from app.api.serializers import (
     serialize_comment,
     serialize_comments,
 )
-from app.api.schema import Dream as DreamSchema, DreamInterpretation
+from app.api.schema import (
+    Dream as DreamSchema,
+    DreamInterpretation,
+    DreamListResponse,
+    Tag as TagSchema,
+)
 from app.core.llm import dream_chain
 
 router = APIRouter()
@@ -31,7 +35,12 @@ def create_dream(
     dream_repo = DreamRepository(db)
     tag_repo = TagRepository(db)
     try:
-        interpretation: DreamInterpretation = dream_chain.invoke({"dream_text": content})
+        interpretation: DreamInterpretation = dream_chain.invoke(
+            {
+                "dream_text": content,
+                "existing_tags": "\n".join([t.name for t in tag_repo.get_all()]),
+            }
+        )
         dream = DBDream(
             user_id=current_user.id,
             content=content,
@@ -39,19 +48,20 @@ def create_dream(
             analysis=interpretation.analysis,
             created_at=datetime.utcnow(),
         )
-
-        tags = tag_repo.get_or_create_many(interpretation.tags)
-        dream.tags = tags
+        dream.tags = [
+            tag_repo.get_or_create(tag.to_dbschema()) for tag in interpretation.tags
+        ]
         dream = dream_repo.create(dream)
         # TODO: pydantic model로 수정, serializer로 변환
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
     return serialize_dream(dream)
 
 
-@router.get("/", response_model=List[DreamSchema])
+@router.get("/", response_model=DreamListResponse)
 def get_dreams(
     q: str | None = None,
     tags: str | None = None,
@@ -65,6 +75,7 @@ def get_dreams(
     Supports optional free-text query `q` and comma-separated tag names via `tags`.
     """
     dream_repo = DreamRepository(db)
+    tag_repo = TagRepository(db)
 
     tag_list: list[str] | None = None
     if tags:
@@ -73,17 +84,23 @@ def get_dreams(
         tag_list = sorted({p for p in parts if p})
 
     total = dream_repo.count_advanced(q, tag_list)
-    dreams = (
-        dream_repo.search_advanced_page(q, tag_list, page, limit)
-        if total
-        else []
-    )
+    dreams = dream_repo.search_advanced_page(q, tag_list, page, limit) if total else []
+
+    selected_tags: list[TagSchema] | None = None
+    if tag_list:
+        # Resolve selected tag names to objects (including description)
+        tags_objs = tag_repo.get_by_names(tag_list)
+        selected_tags = [
+            TagSchema(name=t.name, description=t.description) for t in tags_objs
+        ]
     if response is not None:
         try:
             response.headers["X-Total-Count"] = str(total)
         except Exception:
             pass
-    return serialize_dreams(dreams)
+    return DreamListResponse(
+        dreams=serialize_dreams(dreams), selected_tags=selected_tags
+    )
 
 
 @router.get("/{dream_id}", response_model=DreamSchema)

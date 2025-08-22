@@ -157,6 +157,11 @@ class TagRepository:
     def __init__(self, session: Session):
         self.session = session
 
+    def add(self, tag: Tag):
+        self.session.add(tag)
+        self.session.commit()
+        return tag
+
     def get_by_name(self, name: str):
         return self.session.query(Tag).filter(Tag.name == name).first()
 
@@ -165,34 +170,24 @@ class TagRepository:
             return []
         return self.session.query(Tag).filter(Tag.name.in_(names)).all()
 
-    def get_all(self):
-        return self.session.query(Tag).order_by(Tag.name.asc()).all()
+    def get_all(self) -> list[Tag]:
+        return self.session.query(Tag).all()
 
-    def get_or_create_many(self, names: list[str]):
-        # normalize and dedupe
-        cleaned = []
-        seen = set()
-        for n in names:
-            if not n:
-                continue
-            v = n.strip().lower()
-            if not v or v in seen:
-                continue
-            seen.add(v)
-            cleaned.append(v)
-        if not cleaned:
-            return []
-        existing = {t.name: t for t in self.get_by_names(cleaned)}
-        result = []
-        for nm in cleaned:
-            t = existing.get(nm)
-            if not t:
-                t = Tag(name=nm)
-                self.session.add(t)
-                # do not commit yet; caller may batch commit
-            result.append(t)
-        self.session.commit()
-        return result
+    def get_for_dream(self, dream_id: int) -> list[Tag]:
+        """Return all tags associated with a given dream id."""
+        return (
+            self.session.query(Tag)
+            .join(Tag.dreams)
+            .filter(Dream.id == dream_id)
+            .order_by(Tag.name.asc())
+            .all()
+        )
+
+    def get_or_create(self, tag: Tag):
+        existing = self.get_by_name(tag.name)
+        if existing:
+            return existing
+        return self.add(tag)
 
 
 class CommentRepository:

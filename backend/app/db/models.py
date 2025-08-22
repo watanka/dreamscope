@@ -16,6 +16,7 @@ class Tag(Base):
     __tablename__ = "tags"
     id = Column(Integer, primary_key=True)
     name = Column(String(64), unique=True, index=True)
+    description = Column(String)
     created_at = Column(DateTime, default=datetime.utcnow)
     dreams = relationship(
         "Dream",
@@ -72,6 +73,6 @@ class User(Base):
     # comments = relationship("Comment", backref="user")
     dreams = relationship("Dream", back_populates="user")
     comments = relationship("Comment", back_populates="user")
+
     def name(self):
         return self.given_name + " " + self.family_name
-        
