@@ -19,6 +19,7 @@ def google_callback(code: str, state: str = None, next: str = None, db: Session 
     client_id = os.getenv("GOOGLE_CLIENT_ID")
     client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
     redirect_uri = os.getenv("GOOGLE_REDIRECT_URI") or "http://localhost:8000/auth/google/callback"
+    print("redirect_uri: ", redirect_uri)
     if not client_id or not client_secret:
         raise HTTPException(status_code=500, detail="Google OAuth is not configured. Missing GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET.")
     data = {
