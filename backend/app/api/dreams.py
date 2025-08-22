@@ -63,7 +63,6 @@ def create_dream(
 
 @router.get("/", response_model=DreamListResponse)
 def get_dreams(
-    q: str | None = None,
     tags: str | None = None,
     page: int = 1,
     limit: int = 10,
@@ -72,7 +71,7 @@ def get_dreams(
 ):
     """List dreams ordered by newest first.
 
-    Supports optional free-text query `q` and comma-separated tag names via `tags`.
+    Supports optional comma-separated tag names via `tags`.
     """
     dream_repo = DreamRepository(db)
     tag_repo = TagRepository(db)
@@ -83,8 +82,8 @@ def get_dreams(
         parts = [p.strip().lower() for p in tags.split(",")]
         tag_list = sorted({p for p in parts if p})
 
-    total = dream_repo.count_advanced(q, tag_list)
-    dreams = dream_repo.search_advanced_page(q, tag_list, page, limit) if total else []
+    total = dream_repo.count_advanced(tag_list)
+    dreams = dream_repo.search_advanced_page(tag_list, page, limit) if total else []
 
     selected_tags: list[TagSchema] | None = None
     if tag_list:

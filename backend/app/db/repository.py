@@ -113,35 +113,15 @@ class DreamRepository:
             .all()
         )
 
-    def count_advanced(self, q: str | None, tags: list[str] | None) -> int:
+    def count_advanced(self, tags: list[str] | None) -> int:
         query = self.session.query(Dream.id).outerjoin(Dream.tags)
-        if q and q.strip():
-            pattern = f"%{q.strip()}%"
-            query = query.filter(
-                or_(
-                    Dream.content.ilike(pattern),
-                    Dream.summary.ilike(pattern),
-                    Tag.name.ilike(pattern),
-                )
-            )
         if tags:
             query = query.filter(Tag.name.in_(tags))
         return query.distinct().count()
 
-    def search_advanced_page(
-        self, q: str | None, tags: list[str] | None, page: int, limit: int
-    ):
+    def search_advanced_page(self, tags: list[str] | None, page: int, limit: int):
         offset = max(0, (page - 1) * max(1, limit))
         query = self.session.query(Dream).outerjoin(Dream.tags)
-        if q and q.strip():
-            pattern = f"%{q.strip()}%"
-            query = query.filter(
-                or_(
-                    Dream.content.ilike(pattern),
-                    Dream.summary.ilike(pattern),
-                    Tag.name.ilike(pattern),
-                )
-            )
         if tags:
             query = query.filter(Tag.name.in_(tags))
         return (
