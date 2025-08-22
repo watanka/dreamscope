@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import auth, dreams, search, tags
 from app.db.base import Base, engine
 import os
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+
 app = FastAPI()
 
 # Allow Vite dev server origins
@@ -12,6 +14,7 @@ origins = [
     os.getenv("FRONTEND_URL"),
 ]
 
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,

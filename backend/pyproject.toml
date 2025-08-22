@@ -14,5 +14,6 @@ dependencies = [
     "psycopg[binary]>=3.2.9",
     "pyjwt>=2.10.1",
     "sqlalchemy>=2.0.43",
+    "starlette>=0.47.2",
     "uvicorn>=0.35.0",
 ]
