@@ -1,5 +1,5 @@
 from app.db.models import User, Dream, Comment, Tag
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy import or_
 
 
@@ -114,19 +114,34 @@ class DreamRepository:
         )
 
     def count_advanced(self, tags: list[str] | None) -> int:
-        query = self.session.query(Dream.id).outerjoin(Dream.tags)
-        if tags:
-            query = query.filter(Tag.name.in_(tags))
-        return query.distinct().count()
+        """Count dreams with optional tag filter.
+
+        Uses EXISTS via relationship any() to avoid JOIN/DISTINCT explosion.
+        Falls back to simple count when no tags are provided.
+        """
+        if not tags:
+            return self.count_all()
+        return (
+            self.session.query(Dream.id)
+            .filter(Dream.tags.any(Tag.name.in_(tags)))
+            .count()
+        )
 
     def search_advanced_page(self, tags: list[str] | None, page: int, limit: int):
+        """Page through dreams with optional tag filter, newest first.
+
+        - Avoids JOIN/DISTINCT by using EXISTS filter when tags are present.
+        - Eager-loads related user and tags to prevent N+1 in serializers.
+        """
         offset = max(0, (page - 1) * max(1, limit))
-        query = self.session.query(Dream).outerjoin(Dream.tags)
+        query = (
+            self.session.query(Dream)
+            .options(selectinload(Dream.tags), joinedload(Dream.user))
+        )
         if tags:
-            query = query.filter(Tag.name.in_(tags))
+            query = query.filter(Dream.tags.any(Tag.name.in_(tags)))
         return (
-            query.distinct()
-            .order_by(Dream.created_at.desc())
+            query.order_by(Dream.created_at.desc())
             .offset(offset)
             .limit(limit)
             .all()
