@@ -10,3 +10,6 @@ dev:
 	$(MAKE) backend &
 	$(MAKE) frontend
 
+
+frontend-deploy:
+	cd frontend && npm run build && firebase deploy
