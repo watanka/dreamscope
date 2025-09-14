@@ -7,7 +7,7 @@ from app.db.repository import (
     TagRepository,
     CommentRepository,
 )
-from app.db.models import Dream as DBDream, Comment as DBComment, User as DBUser
+from app.db.models import Comment as DBComment, User as DBUser
 from app.api.serializers import (
     serialize_dream,
     serialize_dreams,
@@ -16,11 +16,10 @@ from app.api.serializers import (
 )
 from app.api.schema import (
     Dream as DreamSchema,
-    DreamInterpretation,
     DreamListResponse,
     Tag as TagSchema,
 )
-from app.core.llm import dream_chain
+from app.core.llm import dream_graph
 
 router = APIRouter()
 
@@ -31,28 +30,25 @@ def create_dream(
     db: Session = Depends(get_db),
     current_user: DBUser = Depends(get_current_user),
 ):
-    """Create a dream with a mocked interpretation and return minimal payload used by frontend."""
+    """Create a dream using LangGraph pipeline with memory load/save."""
     dream_repo = DreamRepository(db)
     tag_repo = TagRepository(db)
     try:
-        interpretation: DreamInterpretation = dream_chain.invoke(
+        existing_tags_str = "\n".join([t.name for t in tag_repo.get_all()])
+        result_state = dream_graph.invoke(
             {
                 "dream_text": content,
-                "existing_tags": "\n".join([t.name for t in tag_repo.get_all()]),
+                "existing_tags": existing_tags_str,
+                "user_id": current_user.id,
+                "db": db,
             }
         )
-        dream = DBDream(
-            user_id=current_user.id,
-            content=content,
-            summary=interpretation.summary,
-            analysis=interpretation.analysis,
-            created_at=datetime.utcnow(),
-        )
-        dream.tags = [
-            tag_repo.get_or_create(tag.to_dbschema()) for tag in interpretation.tags
-        ]
-        dream = dream_repo.create(dream)
-        # TODO: pydantic model로 수정, serializer로 변환
+        dream_id = result_state.get("saved_dream_id")
+        if not dream_id:
+            raise RuntimeError("LangGraph did not return saved_dream_id")
+        dream = dream_repo.get(dream_id)
+        if not dream:
+            raise RuntimeError("Dream not found after graph save")
     except Exception as e:
         import traceback
 

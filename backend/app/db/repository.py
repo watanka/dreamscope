@@ -47,6 +47,16 @@ class DreamRepository:
     def get(self, dream_id: int):
         return self.session.query(Dream).filter(Dream.id == dream_id).first()
 
+    def get_recent_for_user(self, user_id: int, limit: int = 5):
+        """Return the most recent dreams for a given user, newest first."""
+        return (
+            self.session.query(Dream)
+            .filter(Dream.user_id == user_id)
+            .order_by(Dream.created_at.desc())
+            .limit(max(1, limit))
+            .all()
+        )
+
     def search_like(self, q: str):
         pattern = f"%{q}%"
         return (

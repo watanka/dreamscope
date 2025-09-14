@@ -1,12 +1,18 @@
 from langchain.prompts import PromptTemplate
 from langchain.output_parsers import PydanticOutputParser
 from langchain_google_genai import ChatGoogleGenerativeAI
-from app.api.schema import DreamInterpretation
+from langgraph.graph import StateGraph, START, END
+from typing import Optional, TypedDict, cast
+from sqlalchemy.orm import Session
+from datetime import datetime
+from app.api.schema import DreamInterpretation  # type: ignore[import]
+from app.db.repository import DreamRepository, TagRepository
+from app.db.models import Dream as DBDream
 
 # 1) Pydantic parser 정의
 parser = PydanticOutputParser(pydantic_object=DreamInterpretation)
 
-# 2) 프롬프트 템플릿 정의
+# 2) 프롬프트 템플릿 정의 (메모리 컨텍스트 포함)
 dream_prompt = PromptTemplate(
     template="""
 SYSTEM
@@ -30,10 +36,14 @@ INSTRUCTIONS
 
 DREAM INPUT:
 {dream_text}
+
+MEMORY CONTEXT (previous user dreams summaries; optional):
+{memory_context}
+
 EXISTING TAGS:
 {existing_tags}
 """,
-    input_variables=["dream_text", "existing_tags"],
+    input_variables=["dream_text", "existing_tags", "memory_context"],
     partial_variables={"format_instructions": parser.get_format_instructions()},
 )
 
@@ -44,7 +54,87 @@ llm = ChatGoogleGenerativeAI(
 )
 
 
-dream_chain = dream_prompt | llm | parser
+"""
+LangGraph 기반 파이프라인
+- 1) load_memories: 사용자 과거 꿈을 불러와 memory_context 생성
+- 2) llm_infer: memory_context + 기존 태그를 포함한 프롬프트로 LLM 호출 후 파싱
+- 3) add_memory: 생성된 해몽과 함께 금일의 꿈을 DB에 저장(태그 연결 포함)
+"""
+
+
+class DreamState(TypedDict, total=False):
+    dream_text: str
+    existing_tags: str
+    user_id: int
+    db: Session
+
+    memory_context: Optional[str]
+    interpretation: Optional[DreamInterpretation]
+    saved_dream_id: Optional[int]
+
+
+def node_load_memories(state: DreamState) -> dict:
+    db: Session = state["db"]
+    user_id: int = state["user_id"]
+    # 최근 5개 요약을 메모리 컨텍스트로 제공 (Repository 사용)
+    repo = DreamRepository(db)
+    recent = repo.get_recent_for_user(user_id=user_id, limit=5)
+    lines: list[str] = []
+    for d in recent:
+        date_str = d.created_at.strftime("%Y-%m-%d") if d.created_at else ""
+        summary = d.summary or (d.content[:120] + ("…" if len(d.content) > 120 else ""))
+        lines.append(f"- [{date_str}] {summary}")
+    memory_context = "\n".join(lines) if lines else ""
+    return {"memory_context": memory_context}
+
+
+def node_llm_infer(state: DreamState) -> dict:
+    # memory_context는 없을 수 있음
+    prompt_input = {
+        "dream_text": state["dream_text"],
+        "existing_tags": state["existing_tags"],
+        "memory_context": state.get("memory_context") or "",
+    }
+    result = (dream_prompt | llm | parser).invoke(prompt_input)
+    # result 는 DreamInterpretation (Pydantic 모델)
+    return {"interpretation": result}
+
+
+def node_add_memory(state: DreamState) -> dict:
+    db: Session = state["db"]
+    user_id: int = state["user_id"]
+    interpretation = cast(DreamInterpretation, state["interpretation"])
+
+    dream_repo = DreamRepository(db)
+    tag_repo = TagRepository(db)
+
+    dream = DBDream(
+        user_id=user_id,
+        content=state["dream_text"],
+        summary=interpretation.summary,
+        analysis=interpretation.analysis,
+        created_at=datetime.utcnow(),
+    )
+    # 태그 연결
+    dream.tags = [
+        tag_repo.get_or_create(tag.to_dbschema()) for tag in interpretation.tags
+    ]
+    dream = dream_repo.create(dream)
+    return {"saved_dream_id": dream.id, "interpretation": interpretation}
+
+
+# 그래프 컴파일
+graph = StateGraph(DreamState)
+graph.add_node("load_memories", node_load_memories)
+graph.add_node("llm_infer", node_llm_infer)
+graph.add_node("add_memory", node_add_memory)
+
+graph.add_edge(START, "load_memories")
+graph.add_edge("load_memories", "llm_infer")
+graph.add_edge("llm_infer", "add_memory")
+graph.add_edge("add_memory", END)
+
+dream_graph = graph.compile()
 
 # prompt = PromptTemplate.from_template(
 #     input_variables=["user_dream_text"], template="""
